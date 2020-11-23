@@ -1,20 +1,9 @@
 defmodule M2m do
   @moduledoc """
-  Documentation for M2m.
+  file
+  
+  Read one file with M2M dec format and display more readable (indented).
   """
-
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> M2m.hello
-      :world
-
-  """
-  def hello do
-    :world
-  end
 
 	def assemble( [] ), do: []
 	def assemble( [%{:tag => _}=m | t] ) do
@@ -34,8 +23,11 @@ defmodule M2m do
 		Kernel.length( bs )
 	end
 
+	def main( [] ) do
+		IO.puts("#{:escript.script_name()}" <> " " <> @moduledoc)
+	end
 	def main( [file] ) do
-		File.read!( file ) |> String.split("\n")  |> Enum.filter( &useful_line?/1 ) |> Enum.map(&map_from_line/1) |> assemble |> display
+		File.read!( file ) |> String.split("\n")  |> Enum.filter( &useful_line?/1 ) |> Enum.map( &map_from_line/1 ) |> assemble |> display
 	end
 
 	def map_from_line( line ) do
@@ -88,9 +80,22 @@ defmodule M2m do
 
 	defp value_bytes( items ) do
 		{values, ["}" | bytes]} = Enum.split_while( items, &value_bytes_continue?/1 )
-		{Enum.join(values, " "), bytes}
+		{Enum.join(values, " "), value_bytes_ok(bytes)}
 	end
+
 	defp value_bytes_continue?( "}" ), do: false
 	defp value_bytes_continue?( _ ), do: true
 
+	defp value_bytes_ok( bytes ) do
+		for x <- bytes, do: value_bytes_ok(String.length(x), x, bytes)
+	end
+
+	defp value_bytes_ok( 2, x, _bytes ), do: x
+	defp value_bytes_ok( _, x, bytes ) do
+		# IO.puts() will not display.
+		IO.inspect( "Error in bytes:" )
+		IO.inspect( bytes )
+		# Will cause crash. Suppose I could stop here.
+		x
+	end
 end
