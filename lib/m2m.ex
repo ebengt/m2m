@@ -1,101 +1,118 @@
 defmodule M2m do
   @moduledoc """
   file
-  
+
   Read one file with M2M dec format and display more readable (indented).
   """
 
-	def assemble( [] ), do: []
-	def assemble( [%{:tag => _}=m | t] ) do
-		{tothis, rest} = assemble_tothis( assemble_length(m), t, [] )
-		[%{m | :contents => assemble(tothis)} | assemble( rest ) ]
-	end
-	def assemble( [m | t] ), do: [m | assemble( t )]
+  def assemble([]), do: []
 
-	def assemble_length( %{:tag => _, :bytes => [_tag, length]} ), do: length
-	def assemble_length( %{:tag => _, :bytes => [_tag1, _tag, length]} ), do: length
-	def assemble_length( %{:tag => _, :bytes => [_tag1, _tag2, _tag, length]} ), do: length
-	def assemble_length( %{:tag => _, :bytes => [_tag1, _tag, length_counter, length1, length2]} ) when length_counter > 0x80 do
-		length1 * 0x100 + length2
-	end
+  def assemble([%{:tag => _} = m | t]) do
+    {tothis, rest} = assemble_tothis(assemble_length(m), t, [])
+    [%{m | :contents => assemble(tothis)} | assemble(rest)]
+  end
 
-	def length( %{:bytes => bs} ) do
-		Kernel.length( bs )
-	end
+  def assemble([m | t]), do: [m | assemble(t)]
 
-	def main( [] ) do
-		IO.puts("#{:escript.script_name()}" <> " " <> @moduledoc)
-	end
-	def main( [file] ) do
-		File.read!( file ) |> String.split("\n")  |> Enum.filter( &useful_line?/1 ) |> Enum.map( &map_from_line/1 ) |> assemble |> display
-	end
+  def assemble_length(%{:tag => _, :bytes => [_tag, length]}), do: length
+  def assemble_length(%{:tag => _, :bytes => [_tag1, _tag, length]}), do: length
 
-	def map_from_line( line ) do
-		map_from_line_ok( String.split(String.trim(line)) )
-	end
+  def assemble_length(%{:tag => _, :bytes => [_tag, length_counter, length1, length2]})
+      when length_counter > 0x80 do
+    length1 * 0x100 + length2
+  end
 
-	def useful_line?( "" ), do: false
-	def useful_line?( line ), do: String.at( line, 0 ) === "{"
+  def assemble_length(%{:tag => _, :bytes => [_tag1, _tag2, _tag, length]}), do: length
 
+  def assemble_length(%{:tag => _, :bytes => [_tag1, _tag, length_counter, length1, length2]})
+      when length_counter > 0x80 do
+    length1 * 0x100 + length2
+  end
 
-# Internal functions
+  def length(%{:bytes => bs}) do
+    Kernel.length(bs)
+  end
 
-	defp assemble_tothis( bytes, [m | t], acc ) when bytes > 0 do
-		n = M2m.length(m)
-		assemble_tothis( bytes - n, t, [m | acc] )
-	end
-	defp assemble_tothis( 0, ms, acc ) do
-		{Enum.reverse(acc), ms}
-	end
+  def main([]) do
+    IO.puts("#{:escript.script_name()}" <> " " <> @moduledoc)
+  end
 
+  def main([file]) do
+    File.read!(file)
+    |> String.split("\n")
+    |> Enum.filter(&useful_line?/1)
+    |> Enum.map(&map_from_line/1)
+    |> assemble
+    |> display
+  end
 
-	defp display( ms ), do: for m <- ms, do: display( m, "" )
+  def map_from_line(line) do
+    map_from_line_ok(String.split(String.trim(line)))
+  end
 
-	defp display( %{:tag => t, :contents => cs}, pre ) do
-		IO.puts([pre, t] )
-		for c <- cs, do: display( c, pre <> "--->" )
-	end
-	defp display( m, pre ) do
-		[k] = for k <- Map.keys(m), k != :bytes, do: k
-		IO.puts([pre, k, " ", m[k] ])
-	end
+  def useful_line?(""), do: false
+  def useful_line?(line), do: String.at(line, 0) === "{"
 
+  # Internal functions
 
-	defp map_from_line_ok( ["{", key | t] ) do
-		{value, bytes} = value_bytes( t )
-		integers = for x <- bytes, do: String.to_integer(x, 16)
-		map_from_line( key, value, integers )
-	end
-	defp map_from_line_ok( _ ) do
-		%{}
-	end
+  defp assemble_tothis(bytes, [m | t], acc) when bytes > 0 do
+    n = M2m.length(m)
+    assemble_tothis(bytes - n, t, [m | acc])
+  end
 
-	defp map_from_line( key, "----------------", bytes ) do
-		%{:tag => key, :bytes => bytes, :contents => []}
-	end
-	defp map_from_line( key, value, bytes ) do
-		%{key => value, :bytes => bytes}
-	end
+  defp assemble_tothis(0, ms, acc) do
+    {Enum.reverse(acc), ms}
+  end
 
+  defp display(ms), do: for(m <- ms, do: display(m, ""))
 
-	defp value_bytes( items ) do
-		{values, ["}" | bytes]} = Enum.split_while( items, &value_bytes_continue?/1 )
-		{Enum.join(values, " "), value_bytes_ok(bytes)}
-	end
+  defp display(%{:tag => t, :contents => cs}, pre) do
+    IO.puts([pre, t])
+    for c <- cs, do: display(c, pre <> "--->")
+  end
 
-	defp value_bytes_continue?( "}" ), do: false
-	defp value_bytes_continue?( _ ), do: true
+  defp display(m, pre) do
+    [k] = for k <- Map.keys(m), k != :bytes, do: k
+    IO.puts([pre, k, " ", m[k]])
+  end
 
-	defp value_bytes_ok( bytes ) do
-		for x <- bytes, do: value_bytes_ok(String.length(x), x, bytes)
-	end
+  defp map_from_line_ok(["{", key | t]) do
+    {value, bytes} = value_bytes(t)
+    integers = for x <- bytes, do: String.to_integer(x, 16)
+    map_from_line(key, value, integers)
+  end
 
-	defp value_bytes_ok( 2, x, _bytes ), do: x
-	defp value_bytes_ok( _, x, bytes ) do
-		# IO.puts() will not display.
-		IO.inspect( "Error in bytes:" )
-		IO.inspect( bytes )
-		# Will cause crash. Suppose I could stop here.
-		x
-	end
+  defp map_from_line_ok(_) do
+    %{}
+  end
+
+  defp map_from_line(key, "----------------", bytes) do
+    %{:tag => key, :bytes => bytes, :contents => []}
+  end
+
+  defp map_from_line(key, value, bytes) do
+    %{key => value, :bytes => bytes}
+  end
+
+  defp value_bytes(items) do
+    {values, ["}" | bytes]} = Enum.split_while(items, &value_bytes_continue?/1)
+    {Enum.join(values, " "), value_bytes_ok(bytes)}
+  end
+
+  defp value_bytes_continue?("}"), do: false
+  defp value_bytes_continue?(_), do: true
+
+  defp value_bytes_ok(bytes) do
+    for x <- bytes, do: value_bytes_ok(String.length(x), x, bytes)
+  end
+
+  defp value_bytes_ok(2, x, _bytes), do: x
+
+  defp value_bytes_ok(_, x, bytes) do
+    # IO.puts() will not display.
+    IO.inspect("Error in bytes:")
+    IO.inspect(bytes)
+    # Will cause crash. Suppose I could stop here.
+    x
+  end
 end
