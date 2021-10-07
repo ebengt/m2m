@@ -2,6 +2,21 @@ defmodule M2mTest do
   use ExUnit.Case
   doctest M2m
 
+  test "allow line as comment" do
+    m = M2m.map_from_line("/* Record_N 1 */")
+    assert m === %{:comment => " # /* Record_N 1 */"}
+  end
+
+  test "allow line with comment at end" do
+    m = M2m.map_from_line("{ duration      1800 } 80 01 55       difference between changeTime")
+
+    assert m === %{
+             "duration" => "1800",
+             :bytes => [128, 01, 85],
+             :comment => " # difference between changeTime"
+           }
+  end
+
   test "ignore line without item" do
     assert false === M2m.useful_line?("/* Record_N 1 */")
   end
@@ -14,14 +29,15 @@ defmodule M2mTest do
 
     assert m == %{
              "servedMSISDN" => "INTERNATIONAL_NUMBER ISDN/TELEPHONY_NUMBERING_PLAN 1090",
-             :bytes => [128, 01, 85]
+             :bytes => [128, 01, 85],
+             :comment => ""
            }
   end
 
   test "map with items from line" do
     m = M2m.map_from_line("{ p-GWAddress                              ---------------- } A4 06")
 
-    assert m == %{:tag => "p-GWAddress", :contents => [], :bytes => [164, 06]}
+    assert m === %{:tag => "p-GWAddress", :contents => [], :bytes => [164, 06], :comment => ""}
   end
 
   test "length" do

@@ -66,24 +66,30 @@ defmodule M2m do
 
   defp display(ms), do: for(m <- ms, do: display(m, ""))
 
-  defp display(%{:tag => t, :contents => cs}, pre) do
-    IO.puts([pre, t])
+  defp display(%{:tag => t, :contents => cs, :comment => c}, pre) do
+    IO.puts([pre, t, c])
     for c <- cs, do: display(c, pre <> "--->")
   end
 
   defp display(m, pre) do
-    [k] = for k <- Map.keys(m), k != :bytes, do: k
-    IO.puts([pre, k, " ", m[k]])
+    # Find the unknown key
+    [k] = for k <- Map.keys(m), k != :bytes and k != :comment, do: k
+    IO.puts([pre, k, " ", m[k], m[:comment]])
   end
+
+  defp map_comment(map, []), do: Map.put(map, :comment, "")
+  defp map_comment(map, comments), do: Map.put(map, :comment, Enum.join([" #" | comments], " "))
 
   defp map_from_line_ok(["{", key | t]) do
-    {value, bytes} = value_bytes(t)
+    {value, {bytes, comment}} = value_bytes(t)
     integers = for x <- bytes, do: String.to_integer(x, 16)
-    map_from_line(key, value, integers)
+    m = map_from_line(key, value, integers)
+    map_comment(m, comment)
   end
 
-  defp map_from_line_ok(_) do
-    %{}
+  # Will not happen in main
+  defp map_from_line_ok(comment) do
+    map_comment(%{}, comment)
   end
 
   defp map_from_line(key, "----------------", bytes) do
@@ -96,23 +102,11 @@ defmodule M2m do
 
   defp value_bytes(items) do
     {values, ["}" | bytes]} = Enum.split_while(items, &value_bytes_continue?/1)
-    {Enum.join(values, " "), value_bytes_ok(bytes)}
+    {Enum.join(values, " "), Enum.split_while(bytes, &value_bytes_ok?/1)}
   end
 
   defp value_bytes_continue?("}"), do: false
   defp value_bytes_continue?(_), do: true
 
-  defp value_bytes_ok(bytes) do
-    for x <- bytes, do: value_bytes_ok(String.length(x), x, bytes)
-  end
-
-  defp value_bytes_ok(2, x, _bytes), do: x
-
-  defp value_bytes_ok(_, x, bytes) do
-    # IO.puts() will not display.
-    IO.inspect("Error in bytes:")
-    IO.inspect(bytes)
-    # Will cause crash. Suppose I could stop here.
-    x
-  end
+  defp value_bytes_ok?(x), do: String.length(x) === 2
 end
